@@ -10,6 +10,7 @@
 
 use std::fs::File;
 use std::io::prelude::*;
+use std::os::fd::AsFd;
 use std::os::unix::io::AsRawFd;
 use std::os::unix::io::FromRawFd;
 use std::sync::Arc;
@@ -25,15 +26,15 @@ use crate::spinlock::SpinLock;
 use crate::sys::file::wait_until_ready;
 use crate::Result;
 
-pub trait ReadAndAsRawFd: Read + AsRawFd + Send {}
+pub trait ReadAndAsRawFd: Read + AsRawFd + AsFd + Send {}
 
 const KEY_WAIT: Duration = Duration::from_millis(10);
 const DOUBLE_CLICK_DURATION: u128 = 300;
 
-impl<T> ReadAndAsRawFd for T where T: Read + AsRawFd + Send {}
+impl<T> ReadAndAsRawFd for T where T: Read + AsRawFd + AsFd + Send {}
 
 pub struct KeyBoard {
-    file: Box<dyn ReadAndAsRawFd>,
+    file: File,
     sig_tx: Arc<SpinLock<File>>,
     sig_rx: File,
     // bytes will be poped from front, normally the buffer size will be small(< 10 bytes)
@@ -48,7 +49,7 @@ pub struct KeyBoard {
 // https://www.xfree86.org/4.8.0/ctlseqs.html
 // http://man7.org/linux/man-pages/man4/console_codes.4.html
 impl KeyBoard {
-    pub fn new(file: Box<dyn ReadAndAsRawFd>) -> Self {
+    pub fn new(file: File) -> Self {
         // the self-pipe trick for interrupt `select`
         let (rx, tx) = nix::unistd::pipe().expect("failed to set pipe");
 
@@ -77,9 +78,7 @@ impl KeyBoard {
     }
 
     pub fn new_with_tty() -> Self {
-        Self::new(Box::new(
-            get_tty().expect("KeyBoard::new_with_tty: failed to get tty"),
-        ))
+        Self::new(get_tty().expect("KeyBoard::new_with_tty: failed to get tty"))
     }
 
     pub fn raw_mouse(mut self, raw_mouse: bool) -> Self {
@@ -99,11 +98,7 @@ impl KeyBoard {
         // clear interrupt signal
         while let Ok(_) = self.sig_rx.read(&mut reader_buf) {}
 
-        wait_until_ready(
-            self.file.as_raw_fd(),
-            Some(self.sig_rx.as_raw_fd()),
-            timeout,
-        )?; // wait timeout
+        wait_until_ready(&self.file, Some(&self.sig_rx), timeout)?; // wait timeout
 
         self.read_unread_bytes();
         Ok(())
