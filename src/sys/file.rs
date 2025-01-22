@@ -1,17 +1,21 @@
 use crate::Result;
-use std::fs::File;
 use std::time::Duration;
 
 use crate::error::TuikitError;
 use nix::sys::select;
 use nix::sys::time::{TimeVal, TimeValLike};
+use std::os::fd::BorrowedFd;
 
 fn duration_to_timeval(duration: Duration) -> TimeVal {
     let sec = duration.as_secs() * 1000 + (duration.subsec_millis() as u64);
     TimeVal::milliseconds(sec as i64)
 }
 
-pub fn wait_until_ready(fd: &File, signal_fd: Option<&File>, timeout: Duration) -> Result<()> {
+pub fn wait_until_ready(
+    fd: BorrowedFd,
+    signal_fd: Option<BorrowedFd>,
+    timeout: Duration,
+) -> Result<()> {
     let mut timeout_spec = if timeout == Duration::new(0, 0) {
         None
     } else {
@@ -19,13 +23,13 @@ pub fn wait_until_ready(fd: &File, signal_fd: Option<&File>, timeout: Duration) 
     };
 
     let mut fdset = select::FdSet::new();
-    fdset.insert(&fd);
+    fdset.insert(fd);
     signal_fd.map(|fd| fdset.insert(fd));
     let n = select::select(None, &mut fdset, None, None, &mut timeout_spec)?;
 
     if n < 1 {
         Err(TuikitError::Timeout(timeout)) // this error message will be used in input.rs
-    } else if fdset.contains(&fd) {
+    } else if fdset.contains(fd) {
         Ok(())
     } else {
         Err(TuikitError::Interrupted)

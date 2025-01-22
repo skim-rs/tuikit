@@ -12,7 +12,6 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::os::fd::AsFd;
 use std::os::unix::io::AsRawFd;
-use std::os::unix::io::FromRawFd;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -54,10 +53,10 @@ impl KeyBoard {
         let (rx, tx) = nix::unistd::pipe().expect("failed to set pipe");
 
         // set the signal pipe to non-blocking mode
-        let flag = fcntl(rx, FcntlArg::F_GETFL).expect("Get fcntl failed");
+        let flag = fcntl(rx.as_raw_fd(), FcntlArg::F_GETFL).expect("Get fcntl failed");
         let mut flag = OFlag::from_bits_truncate(flag);
         flag.insert(OFlag::O_NONBLOCK);
-        let _ = fcntl(rx, FcntlArg::F_SETFL(flag));
+        let _ = fcntl(rx.as_raw_fd(), FcntlArg::F_SETFL(flag));
 
         // set file to non-blocking mode
         let flag = fcntl(file.as_raw_fd(), FcntlArg::F_GETFL).expect("Get fcntl failed");
@@ -67,8 +66,8 @@ impl KeyBoard {
 
         KeyBoard {
             file,
-            sig_tx: Arc::new(SpinLock::new(unsafe { File::from_raw_fd(tx) })),
-            sig_rx: unsafe { File::from_raw_fd(rx) },
+            sig_tx: Arc::new(SpinLock::new(File::from(tx))),
+            sig_rx: File::from(rx),
             byte_buf: Vec::new(),
             raw_mouse: false,
             next_key: None,
@@ -78,7 +77,11 @@ impl KeyBoard {
     }
 
     pub fn new_with_tty() -> Self {
-        Self::new(get_tty().expect("KeyBoard::new_with_tty: failed to get tty"))
+        Self::new(
+            get_tty()
+                .expect("KeyBoard::new_with_tty: failed to get tty")
+                .into(),
+        )
     }
 
     pub fn raw_mouse(mut self, raw_mouse: bool) -> Self {
@@ -98,7 +101,7 @@ impl KeyBoard {
         // clear interrupt signal
         while let Ok(_) = self.sig_rx.read(&mut reader_buf) {}
 
-        wait_until_ready(&self.file, Some(&self.sig_rx), timeout)?; // wait timeout
+        wait_until_ready(self.file.as_fd(), Some(self.sig_rx.as_fd()), timeout)?; // wait timeout
 
         self.read_unread_bytes();
         Ok(())

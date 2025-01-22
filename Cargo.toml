@@ -13,7 +13,7 @@ edition = "2018"
 
 [dependencies]
 lazy_static = "1.2.0"
-nix = { version = "0.27", default-features = false, features = ["fs", "poll", "signal", "term"] }
+nix = { version = "0.29", default-features = false, features = ["fs", "poll", "signal", "term"] }
 bitflags = "1.0.4"
 term = "0.7"
 unicode-width = "0.1.5"
