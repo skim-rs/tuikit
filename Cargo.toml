@@ -16,7 +16,7 @@ lazy_static = "1.2.0"
 nix = { version = "0.24.1", default-features = false, features = ["fs", "poll", "signal", "term"] }
 bitflags = "1.0.4"
 term = "0.7"
-unicode-width = "0.1.5"
+unicode-width = "0.2.0"
 log = "0.4"
 
 [dev-dependencies]
