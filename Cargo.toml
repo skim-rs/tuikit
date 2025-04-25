@@ -12,7 +12,7 @@ license = "MIT"
 edition = "2018"
 
 [dependencies]
-lazy_static = "1.2.0"
+lazy_static = "1.5.0"
 nix = { version = "0.24.1", default-features = false, features = ["fs", "poll", "signal", "term"] }
 bitflags = "1.0.4"
 term = "0.7"
