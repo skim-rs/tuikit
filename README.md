@@ -1,3 +1,7 @@
+# [DEPRECATED] This code has been migrated to [skim](https://github.com/skim-rs/skim/tuikit). See https://github.com/skim-rs/skim?tab=readme-ov-file#tuikit for how to access its member.
+
+
+
 [![Crates.io](https://img.shields.io/crates/v/tuikit.svg)](https://crates.io/crates/tuikit) [![Build Status](https://github.com/lotabout/tuikit/workflows/Build%20&%20Test/badge.svg)](https://github.com/lotabout/tuikit/actions?query=workflow%3A%22Build+%26+Test%22)
 
 ## Tuikit
