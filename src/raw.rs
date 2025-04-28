@@ -26,6 +26,7 @@ use std::ops;
 use nix::sys::termios::{cfmakeraw, tcgetattr, tcsetattr, SetArg, Termios};
 use nix::unistd::isatty;
 use std::fs;
+use std::os::fd::AsFd;
 use std::os::unix::io::{AsRawFd, RawFd};
 
 // taken from termion
@@ -43,18 +44,18 @@ pub fn get_tty() -> io::Result<fs::File> {
 /// dropped.
 ///
 /// Restoring will entirely bring back the old TTY state.
-pub struct RawTerminal<W: Write + AsRawFd> {
+pub struct RawTerminal<W: Write + AsRawFd + AsFd> {
     prev_ios: Termios,
     output: W,
 }
 
-impl<W: Write + AsRawFd> Drop for RawTerminal<W> {
+impl<W: Write + AsRawFd + AsFd> Drop for RawTerminal<W> {
     fn drop(&mut self) {
-        let _ = tcsetattr(self.output.as_raw_fd(), SetArg::TCSANOW, &self.prev_ios);
+        let _ = tcsetattr(&self.output, SetArg::TCSANOW, &self.prev_ios);
     }
 }
 
-impl<W: Write + AsRawFd> ops::Deref for RawTerminal<W> {
+impl<W: Write + AsRawFd + AsFd> ops::Deref for RawTerminal<W> {
     type Target = W;
 
     fn deref(&self) -> &W {
@@ -62,13 +63,13 @@ impl<W: Write + AsRawFd> ops::Deref for RawTerminal<W> {
     }
 }
 
-impl<W: Write + AsRawFd> ops::DerefMut for RawTerminal<W> {
+impl<W: Write + AsRawFd + AsFd> ops::DerefMut for RawTerminal<W> {
     fn deref_mut(&mut self) -> &mut W {
         &mut self.output
     }
 }
 
-impl<W: Write + AsRawFd> Write for RawTerminal<W> {
+impl<W: Write + AsRawFd + AsFd> Write for RawTerminal<W> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.output.write(buf)
     }
@@ -78,7 +79,7 @@ impl<W: Write + AsRawFd> Write for RawTerminal<W> {
     }
 }
 
-impl<W: Write + AsRawFd> AsRawFd for RawTerminal<W> {
+impl<W: Write + AsRawFd + AsFd> AsRawFd for RawTerminal<W> {
     fn as_raw_fd(&self) -> RawFd {
         return self.output.as_raw_fd();
     }
@@ -90,7 +91,7 @@ impl<W: Write + AsRawFd> AsRawFd for RawTerminal<W> {
 ///
 /// TTYs has their state controlled by the writer, not the reader. You use the writer to clear the
 /// screen, move the cursor and so on, so naturally you use the writer to change the mode as well.
-pub trait IntoRawMode: Write + AsRawFd + Sized {
+pub trait IntoRawMode: Write + AsRawFd + AsFd + Sized {
     /// Switch to raw mode.
     ///
     /// Raw mode means that stdin won't be printed (it will instead have to be written manually by
@@ -99,7 +100,7 @@ pub trait IntoRawMode: Write + AsRawFd + Sized {
     fn into_raw_mode(self) -> io::Result<RawTerminal<Self>>;
 }
 
-impl<W: Write + AsRawFd> IntoRawMode for W {
+impl<W: Write + AsRawFd + AsFd> IntoRawMode for W {
     // modified after https://github.com/kkawakam/rustyline/blob/master/src/tty/unix.rs#L668
     // refer: https://linux.die.net/man/3/termios
     fn into_raw_mode(self) -> io::Result<RawTerminal<W>> {
@@ -111,14 +112,14 @@ impl<W: Write + AsRawFd> IntoRawMode for W {
             Err(nix_err_to_io_err(ENOTTY))?
         }
 
-        let prev_ios = tcgetattr(self.as_raw_fd()).map_err(nix_err_to_io_err)?;
+        let prev_ios = tcgetattr(&self).map_err(nix_err_to_io_err)?;
         let mut ios = prev_ios.clone();
         // set raw mode
         cfmakeraw(&mut ios);
         // enable output processing (so that '\n' will issue carriage return)
         ios.output_flags |= OutputFlags::OPOST;
 
-        tcsetattr(self.as_raw_fd(), SetArg::TCSANOW, &ios).map_err(nix_err_to_io_err)?;
+        tcsetattr(&self, SetArg::TCSANOW, &ios).map_err(nix_err_to_io_err)?;
 
         Ok(RawTerminal {
             prev_ios,
