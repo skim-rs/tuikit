@@ -75,6 +75,7 @@ pub struct TermOptions {
     raw_mouse: bool,
     hold: bool, // to start term or not on creation
     disable_alternate_screen: bool,
+    has_leading_newline: bool,
 }
 
 impl Default for TermOptions {
@@ -89,6 +90,7 @@ impl Default for TermOptions {
             raw_mouse: false,
             hold: false,
             disable_alternate_screen: false,
+            has_leading_newline: true,
         }
     }
 }
@@ -130,6 +132,10 @@ impl TermOptions {
     }
     pub fn disable_alternate_screen(mut self, disable_alternate_screen: bool) -> Self {
         self.disable_alternate_screen = disable_alternate_screen;
+        self
+    }
+    pub fn has_leading_newline(mut self, has_leading_newline: bool) -> Self {
+        self.has_leading_newline = has_leading_newline;
         self
     }
 }
@@ -582,6 +588,7 @@ struct TermLock {
     clear_on_exit: bool,
     clear_on_start: bool,
     mouse_enabled: bool,
+    has_leading_newline: bool,
     alternate_screen: bool,
     disable_alternate_screen: bool,
     cursor_row: usize,
@@ -598,6 +605,7 @@ impl Default for TermLock {
             max_height: TermHeight::Percent(100),
             min_height: TermHeight::Fixed(3),
             bottom_intact: false,
+            has_leading_newline: true,
             alternate_screen: false,
             disable_alternate_screen: false,
             cursor_row: 0,
@@ -623,6 +631,7 @@ impl TermLock {
         term.screen.clear_on_start(options.clear_on_start);
         term.disable_alternate_screen = options.disable_alternate_screen;
         term.mouse_enabled = options.mouse_enabled;
+        term.has_leading_newline = options.has_leading_newline;
         term
     }
 
@@ -773,8 +782,7 @@ impl TermLock {
         } else {
             // only use part of the screen
 
-            // go to a new line so that existing line won't be messed up
-            if cursor_col > 0 {
+            if self.has_leading_newline && cursor_col > 0 {
                 output.write("\n");
                 cursor_row += 1;
             }
